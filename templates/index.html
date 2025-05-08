@@ -1,0 +1,896 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .tab-content {
+        display: none;
+    }
+    .tab-content.active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="{ activeTab: 'generator' }">
+    <!-- Tabs -->
+    <div class="border-b border-gray-200 dark:border-gray-700">
+        <ul class="flex flex-wrap -mb-px">
+            <li class="mr-2">
+                <button @click="activeTab = 'generator'" :class="{'text-primary-600 border-primary-600 dark:text-primary-500 dark:border-primary-500': activeTab === 'generator', 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300': activeTab !== 'generator'}" class="inline-block p-4 border-b-2 rounded-t-lg">
+                    Dummy JSON Generator
+                </button>
+            </li>
+            <li class="mr-2">
+                <button @click="activeTab = 'validator'" :class="{'text-primary-600 border-primary-600 dark:text-primary-500 dark:border-primary-500': activeTab === 'validator', 'border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300': activeTab !== 'validator'}" class="inline-block p-4 border-b-2 rounded-t-lg">
+                    JSON Validator
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Generator Tab Content -->
+    <div x-show="activeTab === 'generator'" x-transition class="mt-6" x-data="generatorApp()">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Left Column: Configuration -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Field Configuration</h2>
+                
+                <!-- Template Management -->
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <button @click="saveTemplate()" class="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition">
+                        Save Template
+                    </button>
+                    <button @click="loadTemplateModal = true" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                        Load Template
+                    </button>
+                    <button @click="clearTemplate()" class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition">
+                        Clear
+                    </button>
+                </div>
+                
+                <!-- Fields List -->
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-medium">Fields</h3>
+                        <button @click="showAddFieldModal()" class="px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition text-sm">
+                            Add Field
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-2 max-h-96 overflow-y-auto">
+                        <template x-for="(field, index) in fields" :key="index">
+                            <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded">
+                                <div class="flex justify-between items-center">
+                                    <div>
+                                        <span class="font-medium" x-text="field.name"></span>
+                                        <span class="text-xs ml-2 text-gray-500 dark:text-gray-400" x-text="field.type"></span>
+                                    </div>
+                                    <div class="flex space-x-2">
+                                        <button @click="editField(index)" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                                            Edit
+                                        </button>
+                                        <button @click="removeField(index)" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="text-sm text-gray-600 dark:text-gray-300 mt-1" x-text="getFieldDescription(field)"></div>
+                            </div>
+                        </template>
+                        
+                        <div x-show="fields.length === 0" class="text-gray-500 dark:text-gray-400 text-center py-4">
+                            No fields added yet. Click "Add Field" to start.
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Generation Options -->
+                <div class="mt-6">
+                    <h3 class="font-medium mb-2">Generation Options</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label for="count" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Number of objects</label>
+                            <input type="number" id="count" x-model="count" min="1" max="100" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                        </div>
+                    </div>
+                    
+                    <button @click="generateJSON()" class="w-full mt-4 px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition" :disabled="fields.length === 0">
+                        Generate JSON
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Right Column: Preview -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Generated JSON</h2>
+                    <div class="flex space-x-2">
+                        <button @click="copyToClipboard()" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm">
+                            Copy
+                        </button>
+                        <button @click="downloadJSON()" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition text-sm">
+                            Download
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="json-preview" class="bg-gray-50 dark:bg-gray-900 rounded p-4 h-[500px] overflow-auto font-mono text-sm"></div>
+            </div>
+        </div>
+        
+        <!-- Add/Edit Field Modal -->
+        <div x-show="fieldModal.show" class="fixed inset-0 z-10 overflow-y-auto" x-cloak>
+            <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
+                
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4" x-text="fieldModal.isEdit ? 'Edit Field' : 'Add Field'"></h3>
+                        
+                        <div class="space-y-4">
+                            <!-- Field Name -->
+                            <div>
+                                <label for="field-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Field Name</label>
+                                <input type="text" id="field-name" x-model="fieldModal.field.name" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                <p x-show="fieldModal.errors.name" class="mt-1 text-sm text-red-600" x-text="fieldModal.errors.name"></p>
+                            </div>
+                            
+                            <!-- Field Type -->
+                            <div>
+                                <label for="field-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Data Type</label>
+                                <select id="field-type" x-model="fieldModal.field.type" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                    <option value="string">String</option>
+                                    <option value="number">Number</option>
+                                    <option value="boolean">Boolean</option>
+                                    <option value="date">Date</option>
+                                    <option value="array">Array</option>
+                                    <option value="object">Object</option>
+                                    <option value="enum">Enum</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Type-specific options -->
+                            <div x-show="fieldModal.field.type === 'string'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">String Options</label>
+                                <div class="mt-2 space-y-3">
+                                    <div>
+                                        <label for="string-format" class="block text-sm text-gray-700 dark:text-gray-300">Format</label>
+                                        <select id="string-format" x-model="fieldModal.field.options.format" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                            <option value="">Random String</option>
+                                            <option value="email">Email</option>
+                                            <option value="uuid">UUID</option>
+                                            <option value="name">Name</option>
+                                            <option value="address">Address</option>
+                                            <option value="phone">Phone Number</option>
+                                            <option value="url">URL</option>
+                                            <option value="regex">Regex Pattern</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div x-show="fieldModal.field.options.format === 'regex'">
+                                        <label for="regex-pattern" class="block text-sm text-gray-700 dark:text-gray-300">Regex Pattern</label>
+                                        <input type="text" id="regex-pattern" x-model="fieldModal.field.options.pattern" placeholder="e.g. [a-z]{5,10}" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                    </div>
+                                    
+                                    <div x-show="!fieldModal.field.options.format || fieldModal.field.options.format === ''">
+                                        <div class="grid grid-cols-2 gap-3">
+                                            <div>
+                                                <label for="min-length" class="block text-sm text-gray-700 dark:text-gray-300">Min Length</label>
+                                                <input type="number" id="min-length" x-model="fieldModal.field.options.min_length" min="1" max="100" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                            </div>
+                                            <div>
+                                                <label for="max-length" class="block text-sm text-gray-700 dark:text-gray-300">Max Length</label>
+                                                <input type="number" id="max-length" x-model="fieldModal.field.options.max_length" min="1" max="100" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div x-show="fieldModal.field.type === 'number'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Number Options</label>
+                                <div class="mt-2 space-y-3">
+                                    <div>
+                                        <label class="inline-flex items-center">
+                                            <input type="checkbox" x-model="fieldModal.field.options.integer" class="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                            <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Integer (no decimals)</span>
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label for="min-value" class="block text-sm text-gray-700 dark:text-gray-300">Min Value</label>
+                                            <input type="number" id="min-value" x-model="fieldModal.field.options.min" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                        </div>
+                                        <div>
+                                            <label for="max-value" class="block text-sm text-gray-700 dark:text-gray-300">Max Value</label>
+                                            <input type="number" id="max-value" x-model="fieldModal.field.options.max" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                        </div>
+                                    </div>
+                                    
+                                    <div x-show="!fieldModal.field.options.integer">
+                                        <label for="decimal-places" class="block text-sm text-gray-700 dark:text-gray-300">Decimal Places</label>
+                                        <input type="number" id="decimal-places" x-model="fieldModal.field.options.decimal_places" min="0" max="10" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div x-show="fieldModal.field.type === 'boolean'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Boolean Options</label>
+                                <div class="mt-2">
+                                    <label for="true-probability" class="block text-sm text-gray-700 dark:text-gray-300">Probability of True (0-1)</label>
+                                    <input type="number" id="true-probability" x-model="fieldModal.field.options.probability" min="0" max="1" step="0.1" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                </div>
+                            </div>
+                            
+                            <div x-show="fieldModal.field.type === 'date'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Date Options</label>
+                                <div class="mt-2 space-y-3">
+                                    <div>
+                                        <label for="date-format" class="block text-sm text-gray-700 dark:text-gray-300">Format</label>
+                                        <select id="date-format" x-model="fieldModal.field.options.format" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                            <option value="iso8601">ISO 8601 (2023-01-01T00:00:00Z)</option>
+                                            <option value="timestamp">Unix Timestamp</option>
+                                            <option value="custom">Custom Format</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div x-show="fieldModal.field.options.format === 'custom'">
+                                        <label for="custom-format" class="block text-sm text-gray-700 dark:text-gray-300">Custom Format</label>
+                                        <input type="text" id="custom-format" x-model="fieldModal.field.options.custom_format" placeholder="%Y-%m-%d" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label for="min-date" class="block text-sm text-gray-700 dark:text-gray-300">Min Date</label>
+                                            <input type="date" id="min-date" x-model="fieldModal.field.options.min" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                        </div>
+                                        <div>
+                                            <label for="max-date" class="block text-sm text-gray-700 dark:text-gray-300">Max Date</label>
+                                            <input type="date" id="max-date" x-model="fieldModal.field.options.max" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div x-show="fieldModal.field.type === 'enum'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Enum Options</label>
+                                <div class="mt-2 space-y-3">
+                                    <div x-data="{ newValue: '' }">
+                                        <label for="enum-values" class="block text-sm text-gray-700 dark:text-gray-300">Values</label>
+                                        <div class="flex mt-1">
+                                            <input type="text" id="enum-values" x-model="newValue" placeholder="Add value..." class="block w-full rounded-l-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                            <button @click="if(newValue) { fieldModal.field.options.values = fieldModal.field.options.values || []; fieldModal.field.options.values.push(newValue); newValue = ''; }" class="inline-flex items-center px-3 py-2 border border-l-0 border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-r-md hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="space-y-2">
+                                        <template x-for="(value, i) in fieldModal.field.options.values || []" :key="i">
+                                            <div class="flex items-center">
+                                                <span x-text="value" class="flex-grow"></span>
+                                                <button @click="fieldModal.field.options.values.splice(i, 1)" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                                    Remove
+                                                </button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div x-show="fieldModal.field.type === 'array'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Array Options</label>
+                                <div class="mt-2 space-y-3">
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label for="min-length" class="block text-sm text-gray-700 dark:text-gray-300">Min Length</label>
+                                            <input type="number" id="min-length" x-model="fieldModal.field.options.min_length" min="0" max="100" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                        </div>
+                                        <div>
+                                            <label for="max-length" class="block text-sm text-gray-700 dark:text-gray-300">Max Length</label>
+                                            <input type="number" id="max-length" x-model="fieldModal.field.options.max_length" min="1" max="100" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <label for="item-type" class="block text-sm text-gray-700 dark:text-gray-300">Item Type</label>
+                                        <select id="item-type" x-model="fieldModal.field.options.item_type" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                            <option value="string">String</option>
+                                            <option value="number">Number</option>
+                                            <option value="boolean">Boolean</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div x-show="fieldModal.field.type === 'object'">
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Object Options</label>
+                                <div class="mt-2 space-y-3">
+                                    <div x-data="{ showNestedFieldModal: false, nestedField: { name: '', type: 'string', options: {} }, nestedFieldErrors: {} }">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <label class="block text-sm text-gray-700 dark:text-gray-300">Nested Fields</label>
+                                            <button @click="showNestedFieldModal = true" class="px-2 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition text-sm">
+                                                Add Nested Field
+                                            </button>
+                                        </div>
+                                        
+                                        <div class="space-y-2 max-h-40 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded p-2">
+                                            <template x-for="(field, i) in fieldModal.field.options.fields || []" :key="i">
+                                                <div class="bg-gray-50 dark:bg-gray-700 p-2 rounded flex justify-between items-center">
+                                                    <div>
+                                                        <span class="font-medium" x-text="field.name"></span>
+                                                        <span class="text-xs ml-2 text-gray-500 dark:text-gray-400" x-text="field.type"></span>
+                                                    </div>
+                                                    <button @click="fieldModal.field.options.fields.splice(i, 1)" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                                        Remove
+                                                    </button>
+                                                </div>
+                                            </template>
+                                            
+                                            <div x-show="!fieldModal.field.options.fields || fieldModal.field.options.fields.length === 0" class="text-gray-500 dark:text-gray-400 text-center py-2">
+                                                No nested fields added yet.
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Nested Field Modal -->
+                                        <div x-show="showNestedFieldModal" class="fixed inset-0 z-20 overflow-y-auto" x-cloak>
+                                            <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                                                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                                                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                                                </div>
+                                                
+                                                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                                                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Add Nested Field</h3>
+                                                        
+                                                        <div class="space-y-4">
+                                                            <!-- Nested Field Name -->
+                                                            <div>
+                                                                <label for="nested-field-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Field Name</label>
+                                                                <input type="text" id="nested-field-name" x-model="nestedField.name" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                                                <p x-show="nestedFieldErrors.name" class="mt-1 text-sm text-red-600" x-text="nestedFieldErrors.name"></p>
+                                                            </div>
+                                                            
+                                                            <!-- Nested Field Type -->
+                                                            <div>
+                                                                <label for="nested-field-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Data Type</label>
+                                                                <select id="nested-field-type" x-model="nestedField.type" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                                                    <option value="string">String</option>
+                                                                    <option value="number">Number</option>
+                                                                    <option value="boolean">Boolean</option>
+                                                                    <option value="date">Date</option>
+                                                                    <option value="enum">Enum</option>
+                                                                </select>
+                                                            </div>
+                                                            
+                                                            <!-- Basic options for the nested field -->
+                                                            <div x-show="nestedField.type === 'string'">
+                                                                <label class="block text-sm text-gray-700 dark:text-gray-300">Format</label>
+                                                                <select x-model="nestedField.options.format" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white sm:text-sm">
+                                                                    <option value="">Random String</option>
+                                                                    <option value="email">Email</option>
+                                                                    <option value="name">Name</option>
+                                                                    <option value="uuid">UUID</option>
+                                                                </select>
+                                                            </div>
+                                                            
+                                                            <div x-show="nestedField.type === 'number'">
+                                                                <div class="flex items-center">
+                                                                    <input type="checkbox" x-model="nestedField.options.integer" class="rounded border-gray-300 text-primary-600 shadow-sm focus:border-primary-500 focus:ring-primary-500">
+                                                                    <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">Integer</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                                        <button @click="if(!nestedField.name) { nestedFieldErrors.name = 'Field name is required'; } else { fieldModal.field.options.fields = fieldModal.field.options.fields || []; fieldModal.field.options.fields.push(JSON.parse(JSON.stringify(nestedField))); showNestedFieldModal = false; }" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm">
+                                                            Add Field
+                                                        </button>
+                                                        <button @click="showNestedFieldModal = false" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                                            Cancel
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button @click="saveField()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary-600 text-base font-medium text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:ml-3 sm:w-auto sm:text-sm">
+                            Save
+                        </button>
+                        <button @click="fieldModal.show = false" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Load Template Modal -->
+        <div x-show="loadTemplateModal" class="fixed inset-0 z-10 overflow-y-auto" x-cloak>
+            <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                    <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
+                </div>
+                
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-4">Load Template</h3>
+                        
+                        <div class="space-y-4">
+                            <div x-show="savedTemplates.length === 0" class="text-gray-500 dark:text-gray-400 text-center py-4">
+                                No saved templates found.
+                            </div>
+                            
+                            <template x-for="(template, index) in savedTemplates" :key="index">
+                                <div class="bg-gray-50 dark:bg-gray-700 p-3 rounded flex justify-between items-center">
+                                    <span x-text="template.name || `Template ${index + 1}`"></span>
+                                    <div class="flex space-x-2">
+                                        <button @click="loadTemplate(index)" class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                                            Load
+                                        </button>
+                                        <button @click="deleteTemplate(index)" class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300">
+                                            Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                        <button @click="loadTemplateModal = false" class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 sm:w-auto sm:text-sm">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Validator Tab Content -->
+    <div x-show="activeTab === 'validator'" x-transition class="mt-6" x-data="validatorApp()">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Left Column: Input -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">JSON Input</h2>
+                    <div class="flex space-x-2">
+                        <button @click="validateSyntax()" class="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition text-sm">
+                            Validate Syntax
+                        </button>
+                        <button @click="validateSchema()" class="px-3 py-1 bg-primary-600 text-white rounded hover:bg-primary-700 transition text-sm">
+                            Validate Schema
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label for="json-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">JSON</label>
+                        <textarea id="json-input" x-model="jsonInput" rows="10" class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white font-mono"></textarea>
+                    </div>
+                    
+                    <div x-show="showSchemaInput">
+                        <label for="schema-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">JSON Schema</label>
+                        <textarea id="schema-input" x-model="schemaInput" rows="10" class="w-full rounded-md border-gray-300 dark:border-gray-600 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:bg-gray-700 dark:text-white font-mono"></textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column: Results -->
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                <h2 class="text-xl font-semibold mb-4">Validation Results</h2>
+                
+                <div x-show="!validationResult" class="text-gray-500 dark:text-gray-400 text-center py-8">
+                    No validation results yet. Click "Validate Syntax" or "Validate Schema" to start.
+                </div>
+                
+                <div x-show="validationResult">
+                    <div x-show="validationResult.success" class="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 p-4 rounded mb-4">
+                        <div class="flex">
+                            <svg class="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                            </svg>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium">
+                                    Validation successful! Your JSON is valid.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div x-show="!validationResult.success" class="bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-100 p-4 rounded mb-4">
+                        <div class="flex">
+                            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                            </svg>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium">
+                                    Validation failed. Please check the errors below.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div x-show="validationResult.errors && validationResult.errors.length > 0" class="space-y-2 mt-4">
+                        <h3 class="font-medium text-gray-700 dark:text-gray-300">Errors:</h3>
+                        <ul class="list-disc pl-5 space-y-1">
+                            <template x-for="error in validationResult.errors" :key="error.message">
+                                <li class="text-red-600 dark:text-red-400">
+                                    <span x-show="error.line" x-text="`Line ${error.line}, Column ${error.column}: ${error.message}`"></span>
+                                    <span x-show="error.path" x-text="`Path '${error.path}': ${error.message}`"></span>
+                                    <span x-show="!error.line && !error.path" x-text="error.message"></span>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function generatorApp() {
+        return {
+            fields: [],
+            count: 5,
+            generatedJSON: null,
+            fieldModal: {
+                show: false,
+                isEdit: false,
+                editIndex: -1,
+                field: {
+                    name: '',
+                    type: 'string',
+                    options: {}
+                },
+                errors: {}
+            },
+            loadTemplateModal: false,
+            savedTemplates: [],
+            
+            init() {
+                // Load saved templates from localStorage
+                const savedTemplatesStr = localStorage.getItem('jsonGeneratorTemplates');
+                if (savedTemplatesStr) {
+                    try {
+                        this.savedTemplates = JSON.parse(savedTemplatesStr);
+                    } catch (e) {
+                        console.error('Error loading saved templates:', e);
+                        this.savedTemplates = [];
+                    }
+                }
+            },
+            
+            showAddFieldModal() {
+                this.fieldModal.isEdit = false;
+                this.fieldModal.editIndex = -1;
+                this.fieldModal.field = {
+                    name: '',
+                    type: 'string',
+                    options: {
+                        format: '',
+                        min_length: 5,
+                        max_length: 10
+                    }
+                };
+                
+                // Initialize fields array for object type
+                if (this.fieldModal.field.type === 'object') {
+                    this.fieldModal.field.options.fields = [];
+                }
+                
+                this.fieldModal.errors = {};
+                this.fieldModal.show = true;
+            },
+            
+            editField(index) {
+                const field = this.fields[index];
+                this.fieldModal.isEdit = true;
+                this.fieldModal.editIndex = index;
+                this.fieldModal.field = JSON.parse(JSON.stringify(field)); // Deep copy
+                this.fieldModal.errors = {};
+                this.fieldModal.show = true;
+            },
+            
+            saveField() {
+                // Validate field
+                this.fieldModal.errors = {};
+                
+                if (!this.fieldModal.field.name) {
+                    this.fieldModal.errors.name = 'Field name is required';
+                    return;
+                }
+                
+                // Initialize options if not present
+                if (!this.fieldModal.field.options) {
+                    this.fieldModal.field.options = {};
+                }
+                
+                // Save field
+                if (this.fieldModal.isEdit) {
+                    this.fields[this.fieldModal.editIndex] = this.fieldModal.field;
+                } else {
+                    this.fields.push(this.fieldModal.field);
+                }
+                
+                this.fieldModal.show = false;
+                showToast(`Field "${this.fieldModal.field.name}" ${this.fieldModal.isEdit ? 'updated' : 'added'} successfully`);
+            },
+            
+            removeField(index) {
+                const fieldName = this.fields[index].name;
+                this.fields.splice(index, 1);
+                showToast(`Field "${fieldName}" removed`);
+            },
+            
+            getFieldDescription(field) {
+                let description = '';
+                
+                switch (field.type) {
+                    case 'string':
+                        if (field.options.format) {
+                            description = `Format: ${field.options.format}`;
+                            if (field.options.format === 'regex' && field.options.pattern) {
+                                description += ` (${field.options.pattern})`;
+                            }
+                        } else {
+                            description = `Length: ${field.options.min_length || 0}-${field.options.max_length || 10} chars`;
+                        }
+                        break;
+                    case 'number':
+                        description = field.options.integer ? 'Integer' : 'Float';
+                        description += ` (${field.options.min || 0}-${field.options.max || 100})`;
+                        break;
+                    case 'boolean':
+                        description = `True probability: ${field.options.probability || 0.5}`;
+                        break;
+                    case 'date':
+                        description = `Format: ${field.options.format || 'iso8601'}`;
+                        break;
+                    case 'array':
+                        description = `${field.options.item_type || 'string'} array [${field.options.min_length || 0}-${field.options.max_length || 5}]`;
+                        break;
+                    case 'enum':
+                        const values = field.options.values || [];
+                        description = `Values: ${values.slice(0, 3).join(', ')}${values.length > 3 ? '...' : ''}`;
+                        break;
+                    case 'object':
+                        description = 'Nested object';
+                        break;
+                }
+                
+                return description;
+            },
+            
+            generateJSON() {
+                if (this.fields.length === 0) {
+                    showToast('Please add at least one field', 'error');
+                    return;
+                }
+                
+                const template = {
+                    fields: this.fields
+                };
+                
+                fetch('/api/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        template: template,
+                        count: this.count
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        this.generatedJSON = data.results;
+                        this.renderJSON(data.results);
+                        showToast('JSON generated successfully');
+                    } else {
+                        showToast('Error generating JSON: ' + data.error, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error generating JSON', 'error');
+                });
+            },
+            
+            renderJSON(json) {
+                const container = document.getElementById('json-preview');
+                container.innerHTML = '';
+                
+                const formatter = new JSONFormatter(json, 2, {
+                    hoverPreviewEnabled: true,
+                    hoverPreviewArrayCount: 100,
+                    hoverPreviewFieldCount: 5,
+                    theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+                    animateOpen: true,
+                    animateClose: true
+                });
+                
+                container.appendChild(formatter.render());
+            },
+            
+            copyToClipboard() {
+                if (!this.generatedJSON) {
+                    showToast('No JSON to copy', 'error');
+                    return;
+                }
+                
+                const jsonStr = JSON.stringify(this.generatedJSON, null, 2);
+                navigator.clipboard.writeText(jsonStr).then(() => {
+                    showToast('JSON copied to clipboard');
+                }).catch(err => {
+                    console.error('Error copying to clipboard:', err);
+                    showToast('Error copying to clipboard', 'error');
+                });
+            },
+            
+            downloadJSON() {
+                if (!this.generatedJSON) {
+                    showToast('No JSON to download', 'error');
+                    return;
+                }
+                
+                const jsonStr = JSON.stringify(this.generatedJSON, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'generated-data.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                showToast('JSON downloaded');
+            },
+            
+            saveTemplate() {
+                if (this.fields.length === 0) {
+                    showToast('Please add at least one field', 'error');
+                    return;
+                }
+                
+                const templateName = prompt('Enter a name for this template:');
+                if (templateName === null) return; // User cancelled
+                
+                const template = {
+                    name: templateName || `Template ${this.savedTemplates.length + 1}`,
+                    fields: JSON.parse(JSON.stringify(this.fields))
+                };
+                
+                this.savedTemplates.push(template);
+                localStorage.setItem('jsonGeneratorTemplates', JSON.stringify(this.savedTemplates));
+                
+                showToast('Template saved successfully');
+            },
+            
+            loadTemplate(index) {
+                const template = this.savedTemplates[index];
+                if (template && template.fields) {
+                    this.fields = JSON.parse(JSON.stringify(template.fields));
+                    this.loadTemplateModal = false;
+                    showToast(`Template "${template.name}" loaded`);
+                }
+            },
+            
+            deleteTemplate(index) {
+                const templateName = this.savedTemplates[index].name;
+                this.savedTemplates.splice(index, 1);
+                localStorage.setItem('jsonGeneratorTemplates', JSON.stringify(this.savedTemplates));
+                showToast(`Template "${templateName}" deleted`);
+            },
+            
+            clearTemplate() {
+                if (confirm('Are you sure you want to clear all fields?')) {
+                    this.fields = [];
+                    showToast('All fields cleared');
+                }
+            }
+        };
+    }
+    
+    function validatorApp() {
+        return {
+            jsonInput: '',
+            schemaInput: '',
+            showSchemaInput: false,
+            validationResult: null,
+            
+            validateSyntax() {
+                if (!this.jsonInput.trim()) {
+                    showToast('Please enter JSON to validate', 'error');
+                    return;
+                }
+                
+                fetch('/api/validate/syntax', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        json: this.jsonInput
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    this.validationResult = data;
+                    if (data.success) {
+                        showToast('JSON syntax is valid');
+                    } else {
+                        showToast('JSON syntax is invalid', 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error validating JSON', 'error');
+                });
+            },
+            
+            validateSchema() {
+                if (!this.jsonInput.trim()) {
+                    showToast('Please enter JSON to validate', 'error');
+                    return;
+                }
+                
+                if (!this.schemaInput.trim()) {
+                    this.showSchemaInput = true;
+                    showToast('Please enter a JSON Schema', 'error');
+                    return;
+                }
+                
+                try {
+                    const jsonData = JSON.parse(this.jsonInput);
+                    const schema = JSON.parse(this.schemaInput);
+                    
+                    fetch('/api/validate/schema', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            json: jsonData,
+                            schema: schema
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        this.validationResult = data;
+                        if (data.success) {
+                            showToast('JSON validates against schema');
+                        } else {
+                            showToast('JSON does not validate against schema', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showToast('Error validating JSON against schema', 'error');
+                    });
+                } catch (e) {
+                    showToast('Invalid JSON or schema format', 'error');
+                }
+            }
+        };
+    }
+</script>
+{% endblock %}
