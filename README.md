@@ -22,31 +22,31 @@ A comprehensive Flask-based web application that serves as a JSON utility tool w
 ## Installation
 
 1. Clone the repository:
-\`\`\`bash
+```bash
 git clone https://github.com/yourusername/json-utility-tool.git
 cd json-utility-tool
-\`\`\`
+```
 
 2. Create a virtual environment and activate it:
-\`\`\`bash
+```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-\`\`\`
+```
 
 3. Install the required packages:
-\`\`\`bash
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
 4. Run the application:
-\`\`\`bash
+```bash
 python app.py
-\`\`\`
+```
 
 5. Open your browser and navigate to:
-\`\`\`
+```
 http://127.0.0.1:5000/
-\`\`\`
+```
 
 ## Usage
 
@@ -72,10 +72,11 @@ http://127.0.0.1:5000/
 - **Frontend**: HTML5, Tailwind CSS, Alpine.js
 - **Libraries**: Faker for generating realistic data, JSONSchema for validation
 
-## License
+## Contributions
+- Open for your heartly contributions, find the issue, correct it and generate a PR
+---
 
-MIT
-\`\`\`
+**Author:** Muhammad Yousuf \
+**Dated:** May 8, 2025
 
-```python file="utils/__init__.py"
-# This file is intentionally left empty to make the directory a Python package
+Keep Programming :)
